@@ -327,6 +327,14 @@ async function collectComponentsAndPins(options: {
 		item => item.componentType !== 'netflag' && item.componentType !== 'netport',
 	);
 
+	// 调试：输出器件采集统计
+	log('info', `[采集] 器件采集统计`, {
+		总器件数: primitives.length,
+		过滤后: filtered.length,
+		有效器件数: validPrimitives.length,
+		网络标记数: filtered.length - validPrimitives.length,
+	});
+
 	// 第二阶段：获取器件详细信息 + 引脚
 	const allComponents: RawComponent[] = [];
 	const allPins: RawPin[] = [];
