@@ -107,7 +107,6 @@ npx -y supergateway \
 📍 MCP Gateway URL: http://localhost:8000/mcp
 🔑 MCP Gateway API Key: (留空)
 ⚡ MCP Auto Approve: 启用
-⏱️ MCP Timeout: 30 秒
 ```
 
 ### 使用远程 SuperGateway
@@ -119,7 +118,6 @@ npx -y supergateway \
 📍 MCP Gateway URL: http://104.224.159.186:55783/mcp
 🔑 MCP Gateway API Key: (如果需要认证则填写)
 ⚡ MCP Auto Approve: 启用
-⏱️ MCP Timeout: 30 秒
 ```
 
 ### 使用自建 REST Gateway
@@ -129,7 +127,6 @@ npx -y supergateway \
 📍 MCP Gateway URL: http://your-gateway.com/api
 🔑 MCP Gateway API Key: your-api-key
 ⚡ MCP Auto Approve: 启用
-⏱️ MCP Timeout: 30 秒
 ```
 
 ## 工作流程
@@ -305,13 +302,7 @@ curl -X POST http://your-gateway.com/api/tools/list \
 2. 检查响应格式是否符合 MCP 规范
 3. 查看调试日志中的错误信息
 
-### Q4: 工具调用超时
-
-**原因：** 工具执行时间超过配置的超时时间。
-
-**解决：** 增加 `MCP Timeout` 配置（默认 30 秒）。
-
-### Q5: CORS 错误
+### Q4: CORS 错误
 
 **原因：** Gateway 未配置 CORS。
 
@@ -323,6 +314,24 @@ npx -y supergateway \
   --port 8000 \
   --cors
 ```
+
+## 重要说明
+
+### 无超时限制
+
+**Gateway 请求不再有超时限制**。有些 MCP 工具（如深度搜索、大文件处理）本身就需要较长执行时间，强制超时会导致工具调用失败。
+
+- ✅ 用户可以随时通过"停止生成"按钮取消请求
+- ✅ 支持 AbortSignal 机制，取消请求会立即中断 Gateway 调用
+- ⚠️ 如果工具长时间无响应，建议检查 Gateway 日志排查问题
+
+### 工具调用轮次
+
+**工具调用轮次不再有硬性限制**。AI 可以根据需要多次调用工具，直到获得足够信息完成回答。
+
+- ✅ 超过 6 轮时会在调试日志中输出警告，但继续执行
+- ✅ 硬性上限为 20 轮，防止真正的死循环
+- ⚠️ 如果频繁超过 6 轮，可能是工具返回信息不足或 AI 陷入循环，建议检查工具实现
 
 ## 可用的 MCP Server
 

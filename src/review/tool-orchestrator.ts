@@ -342,15 +342,7 @@ export class ToolOrchestrator {
 		}
 
 		const url = `${this.gatewayBaseUrl}${path}`;
-		const timeoutMs = (this.config.mcpTimeout || 30) * 1000;
-		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		let abortHandler: (() => void) | undefined;
-
-		const timeoutPromise = new Promise<never>((_, reject) => {
-			timeoutId = setTimeout(() => {
-				reject(new Error(`Gateway 请求超时（>${this.config.mcpTimeout || 30}秒）`));
-			}, timeoutMs);
-		});
 
 		const abortPromise = signal
 			? new Promise<never>((_, reject) => {
@@ -383,12 +375,10 @@ export class ToolOrchestrator {
 				{ headers },
 			) as Promise<unknown>;
 
-			const raceTasks: Array<Promise<unknown>> = [requestPromise, timeoutPromise];
-			if (abortPromise) {
-				raceTasks.push(abortPromise);
-			}
-
-			const response = await Promise.race(raceTasks) as Response;
+			// 只支持用户主动取消，不设置超时限制（有些 MCP 工具执行时间很长）
+			const response = abortPromise
+				? await Promise.race([requestPromise, abortPromise]) as Response
+				: await requestPromise as Response;
 			if (!response.ok) {
 				const text = await response.text();
 				throw new Error(`Gateway HTTP ${response.status}: ${truncateText(text, 500)}`);
@@ -420,9 +410,6 @@ export class ToolOrchestrator {
 			}
 		}
 		finally {
-			if (timeoutId !== undefined) {
-				clearTimeout(timeoutId);
-			}
 			if (signal && abortHandler) {
 				signal.removeEventListener('abort', abortHandler);
 			}

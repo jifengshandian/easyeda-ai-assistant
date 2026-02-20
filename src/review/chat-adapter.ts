@@ -133,12 +133,25 @@ export class ChatSession {
 		const availableTools = options?.tools && options.tools.length > 0
 			? options.tools
 			: undefined;
-		const maxToolRounds = Math.max(1, options?.maxToolRounds || 4);
+		const warnToolRounds = Math.max(1, options?.maxToolRounds || 6);
+		const hardLimitRounds = 20; // 防止真正的死循环
 
 		try {
-			for (let round = 1; round <= maxToolRounds; round++) {
+			let round = 1;
+			while (true) {
 				if (signal?.aborted) {
 					throw createAbortReviewError('请求已取消', undefined, signal.reason);
+				}
+
+				// 硬性上限保护（防止死循环）
+				if (round > hardLimitRounds) {
+					logDebug('warn', `工具调用轮次达到硬性上限（${hardLimitRounds}），强制终止`, { round });
+					throw new Error(`工具调用轮次达到硬性上限（>${hardLimitRounds}），可能存在循环调用问题`);
+				}
+
+				// 软提醒（超过建议轮次时警告但继续）
+				if (round > warnToolRounds) {
+					logDebug('warn', `工具调用轮次超过建议值（${warnToolRounds}），当前第 ${round} 轮`, { round, warnToolRounds });
 				}
 
 				// 每轮都基于最新历史重建消息
@@ -177,6 +190,7 @@ export class ChatSession {
 							name: firstCall.function.name,
 							content: '工具执行器未返回结果。',
 						});
+						round++;
 						continue;
 					}
 
@@ -188,6 +202,7 @@ export class ChatSession {
 							content: toolResult.content,
 						});
 					}
+					round++;
 					continue;
 				}
 
@@ -198,8 +213,6 @@ export class ChatSession {
 				this.history.push({ role: 'assistant', content: assistantContent });
 				return result.textContent;
 			}
-
-			throw new Error(`工具调用轮次超过限制（>${maxToolRounds}）`);
 		}
 		catch (error) {
 			// 出错回滚到本轮请求前状态，避免残留半成品 tool message

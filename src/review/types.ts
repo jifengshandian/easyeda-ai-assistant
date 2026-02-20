@@ -218,7 +218,6 @@ export interface ConfigStore {
 	mcpGatewayUrl?: string; // MCP Gateway 地址
 	mcpGatewayApiKey?: string; // MCP Gateway 鉴权 token（可选）
 	mcpAutoApprove?: boolean; // 是否默认自动批准工具调用
-	mcpTimeout?: number; // MCP Gateway 请求超时（秒），默认30
 }
 
 // ============ 对话模式通信协议 ============

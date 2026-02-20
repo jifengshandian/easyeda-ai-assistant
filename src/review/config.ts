@@ -26,7 +26,6 @@ const DEFAULT_CONFIG: ConfigStore = {
 	mcpGatewayUrl: '',
 	mcpGatewayApiKey: '',
 	mcpAutoApprove: true,
-	mcpTimeout: 30,
 };
 
 /**

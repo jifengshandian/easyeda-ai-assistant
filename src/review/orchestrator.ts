@@ -496,7 +496,6 @@ function setupChatListeners(): void {
 			mcpGatewayUrl: config.mcpGatewayUrl || '',
 			mcpGatewayApiKey: config.mcpGatewayApiKey || '',
 			mcpAutoApprove: config.mcpAutoApprove !== false,
-			mcpTimeout: config.mcpTimeout || 30,
 		});
 	});
 
@@ -602,10 +601,6 @@ function setupChatListeners(): void {
 			console.warn('无效的 mcpAutoApprove');
 			return;
 		}
-		if (data.mcpTimeout !== undefined && (typeof data.mcpTimeout !== 'number' || data.mcpTimeout < 5 || data.mcpTimeout > 120)) {
-			console.warn('无效的 mcpTimeout');
-			return;
-		}
 		if (data.mcpGatewayUrl && (typeof data.mcpGatewayUrl !== 'string' || data.mcpGatewayUrl.length > 500)) {
 			console.warn('无效的 mcpGatewayUrl');
 			return;
@@ -664,7 +659,6 @@ function setupChatListeners(): void {
 			mcpGatewayUrl: result.config.mcpGatewayUrl || '',
 			mcpGatewayApiKey: result.config.mcpGatewayApiKey || '',
 			mcpAutoApprove: result.config.mcpAutoApprove !== false,
-			mcpTimeout: result.config.mcpTimeout || 30,
 		});
 	});
 
