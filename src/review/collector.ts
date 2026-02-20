@@ -319,15 +319,30 @@ async function collectComponentsAndPins(options: {
 		let manufacturer = '';
 		let manufacturerPartNumber = '';
 		let value = '';
+		let prefix = '';
+		let addIntoPcb = '';
+		let lcscPart = '';
+		let jlcPart = '';
+		let bomInclude = '';
 		try {
-			const [mfr, mpn, val] = await Promise.all([
+			const [mfr, mpn, val, pfx, aip, lcsc, jlc, bom] = await Promise.all([
 				primitive.getState_Manufacturer(),
 				primitive.getState_ManufacturerId(),
 				primitive.getState_Value(),
+				primitive.getState_Prefix(),
+				primitive.getState_AddIntoPcb(),
+				primitive.getState_LcscPart(),
+				primitive.getState_JlcPart(),
+				primitive.getState_BomInclude(),
 			]);
 			manufacturer = mfr || '';
 			manufacturerPartNumber = mpn || '';
 			value = val || '';
+			prefix = pfx || '';
+			addIntoPcb = aip || '';
+			lcscPart = lcsc || '';
+			jlcPart = jlc || '';
+			bomInclude = bom || '';
 		}
 		catch {
 			// 某些器件可能没有这些属性
@@ -338,6 +353,11 @@ async function collectComponentsAndPins(options: {
 			designator: designator || '',
 			name: name || '',
 			value,
+			prefix,
+			addIntoPcb,
+			lcscPart,
+			jlcPart,
+			bomInclude,
 			manufacturer,
 			manufacturerPartNumber,
 			x,

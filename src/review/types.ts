@@ -17,8 +17,8 @@ export interface SchReviewChunk {
 		chunkId: string;
 		chunkCount: number;
 	};
-	// [位号, 名称, 关键属性, 制造商, 制造商编号, X, Y, 旋转]
-	components: Array<[string, string, string, string, string, number, number, number]>;
+	// [位号, 名称, 关键属性, 前缀, 加入PCB, LCSC料号, JLC料号, BOM包含, 制造商, 制造商编号, X, Y, 旋转]
+	components: Array<[string, string, string, string, string, string, string, string, string, string, number, number, number]>;
 	// [位号, 引脚编号, 引脚名称, 引脚类型, 网络名称]
 	pins: Array<[string, string, string, string, string | null]>;
 	// [网络名称, 连接引脚数]
@@ -35,6 +35,11 @@ export interface RawComponent {
 	designator: string;
 	name: string;
 	value: string; // 关键属性：电阻阻值、电容值等
+	prefix: string; // 位号前缀（R、C、U 等）
+	addIntoPcb: string; // 是否加入 PCB（影响网表生成）
+	lcscPart: string; // LCSC 料号
+	jlcPart: string; // JLC 料号
+	bomInclude: string; // 是否包含在 BOM 中
 	manufacturer: string;
 	manufacturerPartNumber: string;
 	x: number;
