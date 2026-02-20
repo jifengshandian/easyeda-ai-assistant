@@ -222,6 +222,44 @@ export async function collectSchematicData(): Promise<CollectedData> {
 		// 统计网络
 		const nets = buildNetStatistics(pins);
 
+		// 统计元件属性获取情况
+		const stats = {
+			total: components.length,
+			withValue: components.filter(c => c.value).length,
+			withPrefix: components.filter(c => c.prefix).length,
+			withAddIntoPcb: components.filter(c => c.addIntoPcb).length,
+			withLcscPart: components.filter(c => c.lcscPart).length,
+			withJlcPart: components.filter(c => c.jlcPart).length,
+			withBomInclude: components.filter(c => c.bomInclude).length,
+			withManufacturer: components.filter(c => c.manufacturer).length,
+			withManufacturerPartNumber: components.filter(c => c.manufacturerPartNumber).length,
+		};
+
+		log('info', `[采集] 元件属性统计`, {
+			总元件数: stats.total,
+			有Value: `${stats.withValue}/${stats.total} (${(stats.withValue / stats.total * 100).toFixed(1)}%)`,
+			有Prefix: `${stats.withPrefix}/${stats.total} (${(stats.withPrefix / stats.total * 100).toFixed(1)}%)`,
+			有AddIntoPcb: `${stats.withAddIntoPcb}/${stats.total} (${(stats.withAddIntoPcb / stats.total * 100).toFixed(1)}%)`,
+			有LcscPart: `${stats.withLcscPart}/${stats.total} (${(stats.withLcscPart / stats.total * 100).toFixed(1)}%)`,
+			有JlcPart: `${stats.withJlcPart}/${stats.total} (${(stats.withJlcPart / stats.total * 100).toFixed(1)}%)`,
+			有BomInclude: `${stats.withBomInclude}/${stats.total} (${(stats.withBomInclude / stats.total * 100).toFixed(1)}%)`,
+			有Manufacturer: `${stats.withManufacturer}/${stats.total} (${(stats.withManufacturer / stats.total * 100).toFixed(1)}%)`,
+			有ManufacturerPartNumber: `${stats.withManufacturerPartNumber}/${stats.total} (${(stats.withManufacturerPartNumber / stats.total * 100).toFixed(1)}%)`,
+		});
+
+		// 显示第一个有 Value 的元件作为示例
+		const sampleWithValue = components.find(c => c.value);
+		if (sampleWithValue) {
+			log('info', `[采集] 元件属性示例 (${sampleWithValue.designator})`, {
+				Value: sampleWithValue.value || '(空)',
+				Prefix: sampleWithValue.prefix || '(空)',
+				AddIntoPcb: sampleWithValue.addIntoPcb || '(空)',
+				LcscPart: sampleWithValue.lcscPart || '(空)',
+				JlcPart: sampleWithValue.jlcPart || '(空)',
+				BomInclude: sampleWithValue.bomInclude || '(空)',
+			});
+		}
+
 		const totalTime = Date.now() - startTime;
 		log('success', `[采集] 采集完成: ${components.length} 器件, ${pins.length} 引脚, ${nets.length} 网络, ${netLabels.length} 网络标记 (总耗时 ${totalTime}ms)`);
 
@@ -500,31 +538,6 @@ async function collectComponentsAndPins(options: {
 		allComponents.push(result.component);
 		allPins.push(...result.pins);
 	}
-
-	// 统计属性获取情况
-	const stats = {
-		total: allComponents.length,
-		withValue: allComponents.filter(c => c.value).length,
-		withPrefix: allComponents.filter(c => c.prefix).length,
-		withAddIntoPcb: allComponents.filter(c => c.addIntoPcb).length,
-		withLcscPart: allComponents.filter(c => c.lcscPart).length,
-		withJlcPart: allComponents.filter(c => c.jlcPart).length,
-		withBomInclude: allComponents.filter(c => c.bomInclude).length,
-		withManufacturer: allComponents.filter(c => c.manufacturer).length,
-		withManufacturerPartNumber: allComponents.filter(c => c.manufacturerPartNumber).length,
-	};
-
-	log('info', `[采集] 元件属性统计`, {
-		总元件数: stats.total,
-		有Value: `${stats.withValue}/${stats.total} (${(stats.withValue / stats.total * 100).toFixed(1)}%)`,
-		有Prefix: `${stats.withPrefix}/${stats.total} (${(stats.withPrefix / stats.total * 100).toFixed(1)}%)`,
-		有AddIntoPcb: `${stats.withAddIntoPcb}/${stats.total} (${(stats.withAddIntoPcb / stats.total * 100).toFixed(1)}%)`,
-		有LcscPart: `${stats.withLcscPart}/${stats.total} (${(stats.withLcscPart / stats.total * 100).toFixed(1)}%)`,
-		有JlcPart: `${stats.withJlcPart}/${stats.total} (${(stats.withJlcPart / stats.total * 100).toFixed(1)}%)`,
-		有BomInclude: `${stats.withBomInclude}/${stats.total} (${(stats.withBomInclude / stats.total * 100).toFixed(1)}%)`,
-		有Manufacturer: `${stats.withManufacturer}/${stats.total} (${(stats.withManufacturer / stats.total * 100).toFixed(1)}%)`,
-		有ManufacturerPartNumber: `${stats.withManufacturerPartNumber}/${stats.total} (${(stats.withManufacturerPartNumber / stats.total * 100).toFixed(1)}%)`,
-	});
 
 	return { components: allComponents, pins: allPins };
 }
