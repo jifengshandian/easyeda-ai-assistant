@@ -363,22 +363,24 @@ async function collectComponentsAndPins(options: {
 		let jlcPart = '';
 		let bomInclude = '';
 
-		// 调试：检查 primitive 对象的可用方法（仅第一个元件）
-		if (allComponents.length === 0) {
-			log('info', `[采集] 检查 primitive 对象 (${designator})`, {
-				primitiveType: typeof primitive,
-				hasGetStateValue: typeof primitive.getState_Value === 'function',
-				hasGetStatePrefix: typeof primitive.getState_Prefix === 'function',
-				hasGetStateManufacturer: typeof primitive.getState_Manufacturer === 'function',
-				hasGetStateLcscPart: typeof primitive.getState_LcscPart === 'function',
-				availableMethods: Object.getOwnPropertyNames(Object.getPrototypeOf(primitive))
-					.filter(m => m.startsWith('getState'))
-					.slice(0, 30)
-					.join(', '),
-			});
-		}
-
 		try {
+			// 调试：检查 primitive 对象的可用方法（仅第一个元件）
+			if (allComponents.length === 0) {
+				const protoMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(primitive))
+					.filter(m => m.startsWith('getState'))
+					.slice(0, 30);
+
+				log('info', `[采集] 检查 primitive 对象 (${designator})`, {
+					primitiveType: typeof primitive,
+					hasGetStateValue: typeof primitive.getState_Value === 'function',
+					hasGetStatePrefix: typeof primitive.getState_Prefix === 'function',
+					hasGetStateManufacturer: typeof primitive.getState_Manufacturer === 'function',
+					hasGetStateLcscPart: typeof primitive.getState_LcscPart === 'function',
+					availableMethodsCount: protoMethods.length,
+					availableMethods: protoMethods.join(', '),
+				});
+			}
+
 			const [mfr, mpn, val, pfx, aip, lcsc, jlc, bom] = await Promise.all([
 				primitive.getState_Manufacturer(),
 				primitive.getState_ManufacturerId(),
@@ -418,7 +420,7 @@ async function collectComponentsAndPins(options: {
 			// 某些器件可能没有这些属性
 			log('warn', `[采集] 获取元件属性失败 (${designator})`, {
 				error: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack : undefined,
+				errorStack: error instanceof Error ? error.stack?.substring(0, 500) : undefined,
 			});
 		}
 
