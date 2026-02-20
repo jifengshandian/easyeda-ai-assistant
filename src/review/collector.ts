@@ -331,27 +331,63 @@ async function collectComponentsAndPins(options: {
 	const allComponents: RawComponent[] = [];
 	const allPins: RawPin[] = [];
 
-	const componentTasks = validPrimitives.map(({ primitive }) => async () => {
+	const componentTasks = validPrimitives.map(({ primitive }, index) => async () => {
+		// 调试：检查 primitive 对象的可用方法（仅第一个元件）
+		if (index === 0) {
+			try {
+				const protoMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(primitive))
+					.filter(m => m.startsWith('getState'))
+					.slice(0, 30);
+
+				log('info', `[采集] 检查 primitive 对象 (第一个元件)`, {
+					primitiveType: typeof primitive,
+					hasGetStateValue: typeof primitive.getState_Value === 'function',
+					hasGetStatePrefix: typeof primitive.getState_Prefix === 'function',
+					hasGetStateManufacturer: typeof primitive.getState_Manufacturer === 'function',
+					hasGetStateLcscPart: typeof primitive.getState_LcscPart === 'function',
+					hasGetStateDesignator: typeof primitive.getState_Designator === 'function',
+					hasGetStateName: typeof primitive.getState_Name === 'function',
+					availableMethodsCount: protoMethods.length,
+					availableMethods: protoMethods.join(', '),
+				});
+			}
+			catch (debugError) {
+				log('error', `[采集] 检查 primitive 对象失败`, {
+					error: debugError instanceof Error ? debugError.message : String(debugError),
+				});
+			}
+		}
+
 		// 并行获取器件基本信息 + 引脚列表
-		const [
-			primitiveId,
-			designator,
-			name,
-			x,
-			y,
-			rotation,
-			pinPrimitives,
-		] = await Promise.all([
-			primitive.getState_PrimitiveId(),
-			primitive.getState_Designator(),
-			primitive.getState_Name(),
-			primitive.getState_X(),
-			primitive.getState_Y(),
-			primitive.getState_Rotation(),
-			eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(
-				await primitive.getState_PrimitiveId(),
-			),
-		]);
+		let primitiveId = '';
+		let designator = '';
+		let name = '';
+		let x = 0;
+		let y = 0;
+		let rotation = 0;
+		let pinPrimitives: any[] = [];
+
+		try {
+			[primitiveId, designator, name, x, y, rotation, pinPrimitives] = await Promise.all([
+				primitive.getState_PrimitiveId(),
+				primitive.getState_Designator(),
+				primitive.getState_Name(),
+				primitive.getState_X(),
+				primitive.getState_Y(),
+				primitive.getState_Rotation(),
+				eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(
+					await primitive.getState_PrimitiveId(),
+				),
+			]);
+		}
+		catch (basicError) {
+			log('error', `[采集] 获取基本信息失败`, {
+				error: basicError instanceof Error ? basicError.message : String(basicError),
+				errorStack: basicError instanceof Error ? basicError.stack?.substring(0, 500) : undefined,
+			});
+			// 基本信息获取失败，跳过这个元件
+			return { component: null, pins: [] };
+		}
 
 		// 制造商信息和关键属性（可选）
 		let manufacturer = '';
@@ -364,23 +400,6 @@ async function collectComponentsAndPins(options: {
 		let bomInclude = '';
 
 		try {
-			// 调试：检查 primitive 对象的可用方法（仅第一个元件）
-			if (allComponents.length === 0) {
-				const protoMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(primitive))
-					.filter(m => m.startsWith('getState'))
-					.slice(0, 30);
-
-				log('info', `[采集] 检查 primitive 对象 (${designator})`, {
-					primitiveType: typeof primitive,
-					hasGetStateValue: typeof primitive.getState_Value === 'function',
-					hasGetStatePrefix: typeof primitive.getState_Prefix === 'function',
-					hasGetStateManufacturer: typeof primitive.getState_Manufacturer === 'function',
-					hasGetStateLcscPart: typeof primitive.getState_LcscPart === 'function',
-					availableMethodsCount: protoMethods.length,
-					availableMethods: protoMethods.join(', '),
-				});
-			}
-
 			const [mfr, mpn, val, pfx, aip, lcsc, jlc, bom] = await Promise.all([
 				primitive.getState_Manufacturer(),
 				primitive.getState_ManufacturerId(),
@@ -556,6 +575,8 @@ async function collectComponentsAndPins(options: {
 
 	const results = await promiseAllWithLimit(componentTasks, 30);
 	for (const result of results) {
+		if (result.component === null)
+			continue; // 基本信息获取失败的元件跳过
 		allComponents.push(result.component);
 		allPins.push(...result.pins);
 	}
