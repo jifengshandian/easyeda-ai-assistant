@@ -377,23 +377,36 @@ async function collectComponentsAndPins(options: {
 				});
 
 				// 调试：尝试通过 LCSC 料号查询器件信息
-				const lcscPart = otherProperty?.['LCSC Part'] || otherProperty?.LcscPart || otherProperty?.lcscPart;
-				if (lcscPart) {
+				// 注意：实际键名是 "LCSC Part Name"，需要判断它是编号还是名称
+				const lcscPartNameRaw = otherProperty?.['LCSC Part Name'] || otherProperty?.['LCSC Part'] || '';
+				const lcscPartStr = String(lcscPartNameRaw).trim();
+				log('info', `[采集] LCSC Part 值检查`, {
+					'LCSC Part Name': String(otherProperty?.['LCSC Part Name'] || '(无)'),
+					'LCSC Part': String(otherProperty?.['LCSC Part'] || '(无)'),
+					'isLcscId': /^C\d+$/i.test(lcscPartStr),
+					'resolvedValue': lcscPartStr || '(空)',
+				});
+				if (lcscPartStr) {
 					try {
 						log('info', `[采集] 尝试通过 LCSC 料号查询器件信息`, {
-							lcscPart,
+							lcscPart: lcscPartStr,
 						});
-						// 注意：这里可能需要 libraryUuid，先尝试不传看看
-						const deviceInfo = await eda.lib_Device.getByLcscIds([String(lcscPart)], undefined as any, false);
+						const deviceInfo = await eda.lib_Device.getByLcscIds([lcscPartStr], undefined as any, false);
 						log('info', `[采集] LCSC 器件查询成功`, {
 							deviceInfo: JSON.stringify(deviceInfo).substring(0, 500),
 						});
 					}
 					catch (lcscError) {
 						log('warn', `[采集] LCSC 器件查询失败`, {
+							lcscPart: lcscPartStr,
 							error: lcscError instanceof Error ? lcscError.message : String(lcscError),
 						});
 					}
+				}
+				else {
+					log('info', `[采集] 第一个元件没有 LCSC Part`, {
+						availableKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(无)',
+					});
 				}
 			}
 			catch (debugError) {
@@ -434,7 +447,7 @@ async function collectComponentsAndPins(options: {
 			return { component: null, pins: [] };
 		}
 
-		// 制造商信息和关键属性（可选）
+		// 制造商信息和关键属性（从 OtherProperty 和标准方法获取）
 		let manufacturer = '';
 		let manufacturerPartNumber = '';
 		let value = '';
@@ -445,24 +458,74 @@ async function collectComponentsAndPins(options: {
 		let bomInclude = '';
 
 		try {
-			const [mfr, mpn, val, pfx, aip, lcsc, jlc, bom] = await Promise.all([
+			// 获取标准属性（这些方法确实存在）
+			const [mfr, mpn, aipBool, aibBool] = await Promise.all([
 				primitive.getState_Manufacturer(),
 				primitive.getState_ManufacturerId(),
-				primitive.getState_Value(),
-				primitive.getState_Prefix(),
 				primitive.getState_AddIntoPcb(),
-				primitive.getState_LcscPart(),
-				primitive.getState_JlcPart(),
-				primitive.getState_BomInclude(),
+				primitive.getState_AddIntoBom(),
 			]);
 			manufacturer = mfr || '';
 			manufacturerPartNumber = mpn || '';
-			value = val || '';
-			prefix = pfx || '';
-			addIntoPcb = aip || '';
-			lcscPart = lcsc || '';
-			jlcPart = jlc || '';
-			bomInclude = bom || '';
+			addIntoPcb = aipBool !== undefined ? String(aipBool) : '';
+			bomInclude = aibBool !== undefined ? String(aibBool) : '';
+
+			// 获取 OtherProperty（包含 Value、Prefix、LCSC Part、JLC Part 等）
+			const otherProperty = await primitive.getState_OtherProperty();
+			if (otherProperty) {
+				// 尝试多种可能的键名
+				value = String(otherProperty.Value || otherProperty.value || '');
+				prefix = String(otherProperty.Prefix || otherProperty.prefix || '');
+
+				// LCSC 料号提取：遍历所有键，查找包含 LCSC 编号模式（C + 数字）的值
+				// 同时也保存 LCSC Part Name 作为备用信息
+				const lcscPartName = String(otherProperty['LCSC Part Name'] || '');
+				const lcscPartDirect = String(otherProperty['LCSC Part'] || otherProperty.LcscPart || otherProperty.lcscPart || '');
+
+				// 优先使用直接的 LCSC Part 编号
+				if (lcscPartDirect && /^C\d+$/i.test(lcscPartDirect.trim())) {
+					lcscPart = lcscPartDirect.trim();
+				}
+				// 检查 LCSC Part Name 是否是编号格式（如 "C12345"）
+				else if (lcscPartName && /^C\d+$/i.test(lcscPartName.trim())) {
+					lcscPart = lcscPartName.trim();
+				}
+				// 遍历所有键，查找任何包含 LCSC 编号的值
+				else {
+					for (const key of Object.keys(otherProperty)) {
+						const val = String(otherProperty[key] || '').trim();
+						if (/^C\d{4,}$/.test(val) && key.toLowerCase().includes('lcsc')) {
+							lcscPart = val;
+							break;
+						}
+					}
+					// 如果仍未找到 LCSC 编号，使用 LCSC Part Name 作为名称标识
+					if (!lcscPart && lcscPartName) {
+						lcscPart = lcscPartName;
+					}
+				}
+
+				jlcPart = String(
+					otherProperty['JLCPCB Part Class']
+					|| otherProperty['JLC Part']
+					|| otherProperty.JlcPart
+					|| otherProperty.jlcPart
+					|| '',
+				);
+
+				// BomInclude 可能在 OtherProperty 中，也可能在标准属性中
+				if (!bomInclude) {
+					bomInclude = String(otherProperty['BOM Include'] || otherProperty.BomInclude || otherProperty.bomInclude || '');
+				}
+			}
+
+			// 如果 Prefix 仍为空，尝试从 designator 中提取（如 "R1" → "R"）
+			if (!prefix && designator) {
+				const match = designator.match(/^([A-Z]+)/i);
+				if (match) {
+					prefix = match[1];
+				}
+			}
 
 			// 调试日志：记录第一个元件的属性获取情况（避免日志过多）
 			if (allComponents.length === 0) {
@@ -477,6 +540,9 @@ async function collectComponentsAndPins(options: {
 					hasManufacturerPartNumber: !!manufacturerPartNumber,
 					valuePreview: value ? value.substring(0, 20) : '(空)',
 					prefixPreview: prefix || '(空)',
+					lcscPartPreview: lcscPart ? lcscPart.substring(0, 30) : '(空)',
+					jlcPartPreview: jlcPart ? jlcPart.substring(0, 30) : '(空)',
+					otherPropertyKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(无)',
 				});
 			}
 		}
@@ -510,18 +576,19 @@ async function collectComponentsAndPins(options: {
 		const componentPins: RawPin[] = [];
 		if (pinPrimitives && pinPrimitives.length > 0) {
 			const pinTasks = pinPrimitives.map((pinPrimitive, pinIndex) => async () => {
-				// 调试：检查第一个引脚的 OtherProperty
-				if (index === 0 && pinIndex === 0) {
+				// 调试：检查第一个成功采集的元件的第一个引脚的 OtherProperty
+				if (allComponents.length === 0 && pinIndex === 0) {
 					try {
 						const pinOtherProperty = await pinPrimitive.getState_OtherProperty();
-						log('info', `[采集] 检查 Pin OtherProperty 内容 (第一个引脚)`, {
+						log('info', `[采集] 检查 Pin OtherProperty 内容 (${designator} 的第一个引脚)`, {
+							componentDesignator: designator,
 							pinOtherPropertyType: typeof pinOtherProperty,
 							pinOtherPropertyKeys: pinOtherProperty ? Object.keys(pinOtherProperty).join(', ') : '(null)',
 							pinOtherPropertySample: pinOtherProperty ? JSON.stringify(pinOtherProperty).substring(0, 500) : '(null)',
 						});
 					}
 					catch (pinDebugError) {
-						log('warn', `[采集] 检查 Pin OtherProperty 失败`, {
+						log('warn', `[采集] 检查 Pin OtherProperty 失败 (${designator})`, {
 							error: pinDebugError instanceof Error ? pinDebugError.message : String(pinDebugError),
 						});
 					}
