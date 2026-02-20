@@ -100,22 +100,6 @@ export async function collectSchematicData(): Promise<CollectedData> {
 		meta.expectedPageCount = pages.length;
 		log('info', `[采集] 检测到 ${pages.length} 个图页`);
 
-		// 调试：尝试运行 DRC 检查
-		try {
-			log('info', `[采集] 尝试运行 DRC 检查...`);
-			const drcStartTime = Date.now();
-			const drcResult = await eda.sch_Drc.check(false, false);
-			log('info', `[采集] DRC 检查完成 (耗时 ${Date.now() - drcStartTime}ms)`, {
-				drcResultType: typeof drcResult,
-				drcResultSample: drcResult ? JSON.stringify(drcResult).substring(0, 500) : '(null)',
-			});
-		}
-		catch (drcError) {
-			log('warn', `[采集] DRC 检查失败`, {
-				error: drcError instanceof Error ? drcError.message : String(drcError),
-			});
-		}
-
 		// 先采集网表（全局数据，无需逐页）
 		const t0 = Date.now();
 		const netlistRaw = await collectNetlist();
@@ -391,29 +375,9 @@ async function collectComponentsAndPins(options: {
 		catch (basicError) {
 			log('error', `[采集] 获取基本信息失败`, {
 				error: basicError instanceof Error ? basicError.message : String(basicError),
-				errorStack: basicError instanceof Error ? basicError.stack?.substring(0, 500) : undefined,
 			});
 			// 基本信息获取失败，跳过这个元件
 			return { component: null, pins: [] };
-		}
-
-		// 调试：打印 primitive 对象的关键属性（仅第一个成功采集的元件）
-		if (allComponents.length === 0) {
-			try {
-				log('info', `[采集] 打印 primitive 关键属性 (${designator})`, {
-					designator,
-					supplier: (primitive as any).supplier || '(无)',
-					supplierId: (primitive as any).supplierId || '(无)',
-					manufacturer: (primitive as any).manufacturer || '(无)',
-					manufacturerId: (primitive as any).manufacturerId || '(无)',
-					otherProperty: (primitive as any).otherProperty ? JSON.stringify((primitive as any).otherProperty).substring(0, 500) : '(无)',
-				});
-			}
-			catch (debugError) {
-				log('error', `[采集] primitive 属性读取失败`, {
-					error: debugError instanceof Error ? debugError.message : String(debugError),
-				});
-			}
 		}
 
 		// 制造商信息和关键属性（从 OtherProperty 和标准方法获取）
@@ -503,57 +467,11 @@ async function collectComponentsAndPins(options: {
 					prefix = match[1];
 				}
 			}
-
-			// 调试日志：记录第一个元件的属性获取情况（避免日志过多）
-			if (allComponents.length === 0) {
-				log('info', `[采集] 元件属性获取示例 (${designator})`, {
-					hasValue: !!value,
-					hasPrefix: !!prefix,
-					hasAddIntoPcb: !!addIntoPcb,
-					hasLcscPart: !!lcscPart,
-					hasJlcPart: !!jlcPart,
-					hasBomInclude: !!bomInclude,
-					hasManufacturer: !!manufacturer,
-					hasManufacturerPartNumber: !!manufacturerPartNumber,
-					valuePreview: value ? value.substring(0, 20) : '(空)',
-					prefixPreview: prefix || '(空)',
-					lcscPartPreview: lcscPart ? lcscPart.substring(0, 30) : '(空)',
-					jlcPartPreview: jlcPart ? jlcPart.substring(0, 30) : '(空)',
-					otherPropertyKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(无)',
-					otherPropertySample: otherProperty ? JSON.stringify(otherProperty).substring(0, 1000) : '(无)',
-				});
-
-				// 调试：尝试通过 LCSC 料号查询器件信息
-				if (lcscPart && /^C\d+$/i.test(lcscPart.trim())) {
-					try {
-						log('info', `[采集] 尝试通过 LCSC 料号查询器件信息`, {
-							lcscPart: lcscPart.trim(),
-						});
-						const deviceInfo = await eda.lib_Device.getByLcscIds([lcscPart.trim()], undefined as any, false);
-						log('info', `[采集] LCSC 器件查询成功`, {
-							deviceInfo: JSON.stringify(deviceInfo).substring(0, 500),
-						});
-					}
-					catch (lcscError) {
-						log('warn', `[采集] LCSC 器件查询失败`, {
-							lcscPart: lcscPart.trim(),
-							error: lcscError instanceof Error ? lcscError.message : String(lcscError),
-						});
-					}
-				}
-				else {
-					log('info', `[采集] 第一个元件的 LCSC Part 不是有效编号`, {
-						lcscPartValue: lcscPart || '(空)',
-						isValidFormat: /^C\d+$/i.test(lcscPart?.trim() || ''),
-					});
-				}
-			}
 		}
 		catch (error) {
 			// 某些器件可能没有这些属性
 			log('warn', `[采集] 获取元件属性失败 (${designator})`, {
 				error: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack?.substring(0, 500) : undefined,
 			});
 		}
 
@@ -578,25 +496,7 @@ async function collectComponentsAndPins(options: {
 		// 采集该器件的引脚
 		const componentPins: RawPin[] = [];
 		if (pinPrimitives && pinPrimitives.length > 0) {
-			const pinTasks = pinPrimitives.map((pinPrimitive, pinIndex) => async () => {
-				// 调试：检查第一个成功采集的元件的第一个引脚的 OtherProperty
-				if (allComponents.length === 0 && pinIndex === 0) {
-					try {
-						const pinOtherProperty = await pinPrimitive.getState_OtherProperty();
-						log('info', `[采集] 检查 Pin OtherProperty 内容 (${designator} 的第一个引脚)`, {
-							componentDesignator: designator,
-							pinOtherPropertyType: typeof pinOtherProperty,
-							pinOtherPropertyKeys: pinOtherProperty ? Object.keys(pinOtherProperty).join(', ') : '(null)',
-							pinOtherPropertySample: pinOtherProperty ? JSON.stringify(pinOtherProperty).substring(0, 500) : '(null)',
-						});
-					}
-					catch (pinDebugError) {
-						log('warn', `[采集] 检查 Pin OtherProperty 失败 (${designator})`, {
-							error: pinDebugError instanceof Error ? pinDebugError.message : String(pinDebugError),
-						});
-					}
-				}
-
+			const pinTasks = pinPrimitives.map((pinPrimitive, _pinIndex) => async () => {
 				const [
 					pinPrimitiveId,
 					pinNumber,
