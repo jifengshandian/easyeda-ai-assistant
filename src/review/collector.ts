@@ -350,27 +350,18 @@ async function collectComponentsAndPins(options: {
 	const allPins: RawPin[] = [];
 
 	const componentTasks = validPrimitives.map(({ primitive }, index) => async () => {
-		// 调试：检查 primitive 对象的可用方法（仅第一个元件）
+		// 调试：检查 OtherProperty 的内容（仅第一个元件）
 		if (index === 0) {
 			try {
-				const protoMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(primitive))
-					.filter(m => m.startsWith('getState'))
-					.slice(0, 30);
-
-				log('info', `[采集] 检查 primitive 对象 (第一个元件)`, {
-					primitiveType: typeof primitive,
-					hasGetStateValue: typeof primitive.getState_Value === 'function',
-					hasGetStatePrefix: typeof primitive.getState_Prefix === 'function',
-					hasGetStateManufacturer: typeof primitive.getState_Manufacturer === 'function',
-					hasGetStateLcscPart: typeof primitive.getState_LcscPart === 'function',
-					hasGetStateDesignator: typeof primitive.getState_Designator === 'function',
-					hasGetStateName: typeof primitive.getState_Name === 'function',
-					availableMethodsCount: protoMethods.length,
-					availableMethods: protoMethods.join(', '),
+				const otherProperty = await primitive.getState_OtherProperty();
+				log('info', `[采集] 检查 OtherProperty 内容 (第一个元件)`, {
+					otherPropertyType: typeof otherProperty,
+					otherPropertyKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(null)',
+					otherPropertySample: otherProperty ? JSON.stringify(otherProperty).substring(0, 500) : '(null)',
 				});
 			}
 			catch (debugError) {
-				log('error', `[采集] 检查 primitive 对象失败`, {
+				log('error', `[采集] 检查 OtherProperty 失败`, {
 					error: debugError instanceof Error ? debugError.message : String(debugError),
 				});
 			}
