@@ -439,6 +439,13 @@ async function collectComponentsAndPins(options: {
 			addIntoPcb = aipBool !== undefined ? String(aipBool) : '';
 			bomInclude = aibBool !== undefined ? String(aibBool) : '';
 
+			// LCSC 料号提取：优先使用 primitive.supplierId（直接属性）
+			// supplierId 是 primitive 的直接属性，与 otherProperty 无关，所以先读取
+			const supplierIdDirect = (primitive as any).supplierId;
+			if (supplierIdDirect && /^C\d+$/i.test(String(supplierIdDirect).trim())) {
+				lcscPart = String(supplierIdDirect).trim();
+			}
+
 			// 获取 OtherProperty（包含 Value、Prefix、LCSC Part、JLC Part 等）
 			const otherProperty = await primitive.getState_OtherProperty();
 			if (otherProperty) {
@@ -446,14 +453,8 @@ async function collectComponentsAndPins(options: {
 				value = String(otherProperty.Value || otherProperty.value || '');
 				prefix = String(otherProperty.Prefix || otherProperty.prefix || '');
 
-				// LCSC 料号提取：优先使用 primitive.supplierId（直接属性）
-				// 如果 supplierId 是 LCSC 编号格式，直接使用
-				const supplierIdDirect = (primitive as any).supplierId;
-				if (supplierIdDirect && /^C\d+$/i.test(String(supplierIdDirect).trim())) {
-					lcscPart = String(supplierIdDirect).trim();
-				}
-				else {
-					// 回退到 OtherProperty 中查找
+				// 如果 supplierId 没有获取到 LCSC 编号，回退到 OtherProperty 中查找
+				if (!lcscPart) {
 					const lcscPartName = String(otherProperty['LCSC Part Name'] || '');
 					const lcscPartDirect = String(otherProperty['LCSC Part'] || otherProperty.LcscPart || otherProperty.lcscPart || '');
 
