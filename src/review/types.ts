@@ -17,8 +17,8 @@ export interface SchReviewChunk {
 		chunkId: string;
 		chunkCount: number;
 	};
-	// [位号, 名称, 制造商, 制造商编号, X, Y, 旋转]
-	components: Array<[string, string, string, string, number, number, number]>;
+	// [位号, 名称, 关键属性, 制造商, 制造商编号, X, Y, 旋转]
+	components: Array<[string, string, string, string, string, number, number, number]>;
 	// [位号, 引脚编号, 引脚名称, 引脚类型, 网络名称]
 	pins: Array<[string, string, string, string, string | null]>;
 	// [网络名称, 连接引脚数]
@@ -34,6 +34,7 @@ export interface RawComponent {
 	primitiveId: string;
 	designator: string;
 	name: string;
+	value: string; // 关键属性：电阻阻值、电容值等
 	manufacturer: string;
 	manufacturerPartNumber: string;
 	x: number;

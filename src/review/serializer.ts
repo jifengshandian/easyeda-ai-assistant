@@ -22,16 +22,17 @@ export function serializeToCompactFormat(
 	}
 
 	// 转换器件为tuple格式
-	// [位号, 名称, 制造商, 制造商编号, X, Y, 旋转]
+	// [位号, 名称, 关键属性, 制造商, 制造商编号, X, Y, 旋转]
 	const components = data.components.map(c => [
 		c.designator,
 		c.name,
+		c.value,
 		c.manufacturer,
 		c.manufacturerPartNumber,
 		c.x,
 		c.y,
 		c.rotation,
-	] as [string, string, string, string, number, number, number]);
+	] as [string, string, string, string, string, number, number, number]);
 
 	// 转换引脚为tuple格式
 	// [位号, 引脚编号, 引脚名称, 引脚类型, 网络名称]

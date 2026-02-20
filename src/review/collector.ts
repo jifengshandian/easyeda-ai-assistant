@@ -315,16 +315,19 @@ async function collectComponentsAndPins(options: {
 			),
 		]);
 
-		// 制造商信息可选
+		// 制造商信息和关键属性（可选）
 		let manufacturer = '';
 		let manufacturerPartNumber = '';
+		let value = '';
 		try {
-			const [mfr, mpn] = await Promise.all([
+			const [mfr, mpn, val] = await Promise.all([
 				primitive.getState_Manufacturer(),
 				primitive.getState_ManufacturerId(),
+				primitive.getState_Value(),
 			]);
 			manufacturer = mfr || '';
 			manufacturerPartNumber = mpn || '';
+			value = val || '';
 		}
 		catch {
 			// 某些器件可能没有这些属性
@@ -334,6 +337,7 @@ async function collectComponentsAndPins(options: {
 			primitiveId,
 			designator: designator || '',
 			name: name || '',
+			value,
 			manufacturer,
 			manufacturerPartNumber,
 			x,
