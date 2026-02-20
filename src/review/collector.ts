@@ -397,50 +397,80 @@ async function collectComponentsAndPins(options: {
 			return { component: null, pins: [] };
 		}
 
-		// 调试：尝试获取 LCSC 编号（仅第一个成功采集的元件）
+		// 调试：打印 primitive 对象的所有属性和方法（仅第一个成功采集的元件）
 		if (allComponents.length === 0) {
 			try {
-				log('info', `[采集] 尝试获取 LCSC 编号的各种方法 (${designator})`, {
+				log('info', `[采集] 打印 primitive 对象结构 (${designator})`, {
 					designator,
 					primitiveType: typeof primitive,
 				});
 
-				// 尝试所有可能的方法
-				const testMethods = [
-					'getState_LcscPart',
-					'getState_Lcsc',
-					'getState_SupplierPart',
-					'getState_ItemProperty',
-					'getState_CNumber',
-					'getState_SupplierPartNumber',
-					'getState_ComponentAttributes',
-					'getState_Attributes',
+				// 1. 打印对象的所有键（包括方法名）
+				const allKeys = Object.keys(primitive);
+				const allMethods = allKeys.filter(key => typeof (primitive as any)[key] === 'function');
+				const allProperties = allKeys.filter(key => typeof (primitive as any)[key] !== 'function');
+
+				log('info', `[采集] primitive 对象的所有方法`, {
+					methodCount: allMethods.length,
+					methods: allMethods.join(', '),
+				});
+
+				log('info', `[采集] primitive 对象的所有属性`, {
+					propertyCount: allProperties.length,
+					properties: allProperties.join(', '),
+				});
+
+				// 2. 尝试获取底层数据
+				const testDataMethods = [
+					'exportData',
+					'toJSON',
+					'getData',
+					'getSourceData',
+					'getRawData',
 				];
 
-				for (const methodName of testMethods) {
+				for (const methodName of testDataMethods) {
 					try {
 						if (typeof (primitive as any)[methodName] === 'function') {
 							const result = await (primitive as any)[methodName]();
-							log('info', `[采集] ${methodName} 返回值`, {
+							log('info', `[采集] ${methodName}() 返回值`, {
 								methodName,
 								resultType: typeof result,
-								resultValue: result ? JSON.stringify(result).substring(0, 300) : '(null)',
+								resultValue: result ? JSON.stringify(result).substring(0, 1000) : '(null)',
 							});
 						}
-						else {
-							log('info', `[采集] ${methodName} 不存在`, { methodName });
-						}
 					}
-					catch (methodError) {
-						log('warn', `[采集] ${methodName} 调用失败`, {
-							methodName,
-							error: methodError instanceof Error ? methodError.message : String(methodError),
+					catch {
+						// 忽略错误
+					}
+				}
+
+				// 3. 尝试直接访问可能的属性
+				const testProperties = [
+					'lcscPart',
+					'lcsc',
+					'supplierPart',
+					'cNumber',
+					'attributes',
+					'data',
+					'_data',
+					'state',
+					'_state',
+				];
+
+				for (const propName of testProperties) {
+					const value = (primitive as any)[propName];
+					if (value !== undefined) {
+						log('info', `[采集] primitive.${propName} 属性值`, {
+							propName,
+							valueType: typeof value,
+							value: typeof value === 'object' ? JSON.stringify(value).substring(0, 500) : String(value),
 						});
 					}
 				}
 			}
 			catch (debugError) {
-				log('error', `[采集] LCSC 编号调试失败`, {
+				log('error', `[采集] primitive 对象结构打印失败`, {
 					error: debugError instanceof Error ? debugError.message : String(debugError),
 				});
 			}
