@@ -397,80 +397,20 @@ async function collectComponentsAndPins(options: {
 			return { component: null, pins: [] };
 		}
 
-		// 调试：打印 primitive 对象的所有属性和方法（仅第一个成功采集的元件）
+		// 调试：打印 primitive 对象的关键属性（仅第一个成功采集的元件）
 		if (allComponents.length === 0) {
 			try {
-				log('info', `[采集] 打印 primitive 对象结构 (${designator})`, {
+				log('info', `[采集] 打印 primitive 关键属性 (${designator})`, {
 					designator,
-					primitiveType: typeof primitive,
+					supplier: (primitive as any).supplier || '(无)',
+					supplierId: (primitive as any).supplierId || '(无)',
+					manufacturer: (primitive as any).manufacturer || '(无)',
+					manufacturerId: (primitive as any).manufacturerId || '(无)',
+					otherProperty: (primitive as any).otherProperty ? JSON.stringify((primitive as any).otherProperty).substring(0, 500) : '(无)',
 				});
-
-				// 1. 打印对象的所有键（包括方法名）
-				const allKeys = Object.keys(primitive);
-				const allMethods = allKeys.filter(key => typeof (primitive as any)[key] === 'function');
-				const allProperties = allKeys.filter(key => typeof (primitive as any)[key] !== 'function');
-
-				log('info', `[采集] primitive 对象的所有方法`, {
-					methodCount: allMethods.length,
-					methods: allMethods.join(', '),
-				});
-
-				log('info', `[采集] primitive 对象的所有属性`, {
-					propertyCount: allProperties.length,
-					properties: allProperties.join(', '),
-				});
-
-				// 2. 尝试获取底层数据
-				const testDataMethods = [
-					'exportData',
-					'toJSON',
-					'getData',
-					'getSourceData',
-					'getRawData',
-				];
-
-				for (const methodName of testDataMethods) {
-					try {
-						if (typeof (primitive as any)[methodName] === 'function') {
-							const result = await (primitive as any)[methodName]();
-							log('info', `[采集] ${methodName}() 返回值`, {
-								methodName,
-								resultType: typeof result,
-								resultValue: result ? JSON.stringify(result).substring(0, 1000) : '(null)',
-							});
-						}
-					}
-					catch {
-						// 忽略错误
-					}
-				}
-
-				// 3. 尝试直接访问可能的属性
-				const testProperties = [
-					'lcscPart',
-					'lcsc',
-					'supplierPart',
-					'cNumber',
-					'attributes',
-					'data',
-					'_data',
-					'state',
-					'_state',
-				];
-
-				for (const propName of testProperties) {
-					const value = (primitive as any)[propName];
-					if (value !== undefined) {
-						log('info', `[采集] primitive.${propName} 属性值`, {
-							propName,
-							valueType: typeof value,
-							value: typeof value === 'object' ? JSON.stringify(value).substring(0, 500) : String(value),
-						});
-					}
-				}
 			}
 			catch (debugError) {
-				log('error', `[采集] primitive 对象结构打印失败`, {
+				log('error', `[采集] primitive 属性读取失败`, {
 					error: debugError instanceof Error ? debugError.message : String(debugError),
 				});
 			}
@@ -506,31 +446,38 @@ async function collectComponentsAndPins(options: {
 				value = String(otherProperty.Value || otherProperty.value || '');
 				prefix = String(otherProperty.Prefix || otherProperty.prefix || '');
 
-				// LCSC 料号提取：遍历所有键，查找包含 LCSC 编号模式（C + 数字）的值
-				// 同时也保存 LCSC Part Name 作为备用信息
-				const lcscPartName = String(otherProperty['LCSC Part Name'] || '');
-				const lcscPartDirect = String(otherProperty['LCSC Part'] || otherProperty.LcscPart || otherProperty.lcscPart || '');
-
-				// 优先使用直接的 LCSC Part 编号
-				if (lcscPartDirect && /^C\d+$/i.test(lcscPartDirect.trim())) {
-					lcscPart = lcscPartDirect.trim();
+				// LCSC 料号提取：优先使用 primitive.supplierId（直接属性）
+				// 如果 supplierId 是 LCSC 编号格式，直接使用
+				const supplierIdDirect = (primitive as any).supplierId;
+				if (supplierIdDirect && /^C\d+$/i.test(String(supplierIdDirect).trim())) {
+					lcscPart = String(supplierIdDirect).trim();
 				}
-				// 检查 LCSC Part Name 是否是编号格式（如 "C12345"）
-				else if (lcscPartName && /^C\d+$/i.test(lcscPartName.trim())) {
-					lcscPart = lcscPartName.trim();
-				}
-				// 遍历所有键，查找任何包含 LCSC 编号的值
 				else {
-					for (const key of Object.keys(otherProperty)) {
-						const val = String(otherProperty[key] || '').trim();
-						if (/^C\d{4,}$/.test(val) && key.toLowerCase().includes('lcsc')) {
-							lcscPart = val;
-							break;
-						}
+					// 回退到 OtherProperty 中查找
+					const lcscPartName = String(otherProperty['LCSC Part Name'] || '');
+					const lcscPartDirect = String(otherProperty['LCSC Part'] || otherProperty.LcscPart || otherProperty.lcscPart || '');
+
+					// 优先使用直接的 LCSC Part 编号
+					if (lcscPartDirect && /^C\d+$/i.test(lcscPartDirect.trim())) {
+						lcscPart = lcscPartDirect.trim();
 					}
-					// 如果仍未找到 LCSC 编号，使用 LCSC Part Name 作为名称标识
-					if (!lcscPart && lcscPartName) {
-						lcscPart = lcscPartName;
+					// 检查 LCSC Part Name 是否是编号格式（如 "C12345"）
+					else if (lcscPartName && /^C\d+$/i.test(lcscPartName.trim())) {
+						lcscPart = lcscPartName.trim();
+					}
+					// 遍历所有键，查找任何包含 LCSC 编号的值
+					else {
+						for (const key of Object.keys(otherProperty)) {
+							const val = String(otherProperty[key] || '').trim();
+							if (/^C\d{4,}$/.test(val) && key.toLowerCase().includes('lcsc')) {
+								lcscPart = val;
+								break;
+							}
+						}
+						// 如果仍未找到 LCSC 编号，使用 LCSC Part Name 作为名称标识
+						if (!lcscPart && lcscPartName) {
+							lcscPart = lcscPartName;
+						}
 					}
 				}
 
