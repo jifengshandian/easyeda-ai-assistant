@@ -72,7 +72,7 @@ async function callOpenAICompatible(
 		response_format: { type: 'json_object' },
 	};
 
-	return await makeRequest(url, config.apiKey, body, config.timeout || 120);
+	return await makeRequest(url, config.apiKey, body);
 }
 
 /**
@@ -82,19 +82,13 @@ async function makeRequest(
 	url: string,
 	apiKey: string,
 	body: unknown,
-	timeout: number,
 ): Promise<AIResponse> {
 	const maxRetries = 3;
 	let lastError: Error | null = null;
 
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
-			let timeoutId: ReturnType<typeof setTimeout> | undefined;
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeout * 1000);
-			});
-
-			const requestPromise = eda.sys_ClientUrl.request(
+			const response = await eda.sys_ClientUrl.request(
 				url,
 				'POST',
 				JSON.stringify(body),
@@ -106,22 +100,13 @@ async function makeRequest(
 				},
 			);
 
-			try {
-				const response = await Promise.race([requestPromise, timeoutPromise]);
-
-				if (!response.ok) {
-					const errorText = await response.text();
-					throw new Error(`HTTP ${response.status}: ${errorText}`);
-				}
-
-				const data = await response.json();
-				return parseAIResponse(data);
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`HTTP ${response.status}: ${errorText}`);
 			}
-			finally {
-				if (timeoutId !== undefined) {
-					clearTimeout(timeoutId);
-				}
-			}
+
+			const data = await response.json();
+			return parseAIResponse(data);
 		}
 		catch (error) {
 			// P1: ReviewError应该直接透传，不应该被重试逻辑吞掉
@@ -146,18 +131,6 @@ async function makeRequest(
 					'API请求频率超限',
 					lastError,
 				);
-			}
-
-			// P1: 超时错误映射到AI_TIMEOUT，但允许重试1次（网络抖动）
-			if (lastError.message.includes('Request timeout')) {
-				if (attempt === maxRetries) {
-					throw new ReviewError(
-						ErrorCode.AI_TIMEOUT,
-						`AI请求超时（>${timeout}秒，已重试${maxRetries}次）`,
-						lastError,
-					);
-				}
-				// 超时允许重试，但不抛出，继续下一次尝试
 			}
 
 			if (lastError.message.includes('CORS')) {

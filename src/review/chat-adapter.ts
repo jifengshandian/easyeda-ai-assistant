@@ -344,17 +344,7 @@ async function makeRequest(
 	onBlock?: MessageBlockHandler,
 	signal?: AbortSignal,
 ): Promise<ChatCompletionResult> {
-	const timeout = (config.timeout || 120) * 1000;
-	let timeoutId: ReturnType<typeof setTimeout> | undefined;
 	let abortHandler: (() => void) | undefined;
-
-	const timeoutPromise = new Promise<never>((_, reject) => {
-		timeoutId = setTimeout(() => reject(new ReviewError(
-			ErrorCode.AI_TIMEOUT,
-			`请求超时（>${config.timeout || 120}秒）`,
-			{ timeoutMs: timeout, url },
-		)), timeout);
-	});
 
 	const abortPromise = signal
 		? new Promise<never>((_, reject) => {
@@ -373,24 +363,22 @@ async function makeRequest(
 		: undefined;
 
 	try {
-		const requestTasks: Array<Promise<unknown>> = [
-			eda.sys_ClientUrl.request(
-				url,
-				'POST',
-				JSON.stringify(body),
-				{
-					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${config.apiKey}`,
-					},
+		const requestPromise = eda.sys_ClientUrl.request(
+			url,
+			'POST',
+			JSON.stringify(body),
+			{
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${config.apiKey}`,
 				},
-			) as Promise<unknown>,
-			timeoutPromise,
-		];
-		if (abortPromise)
-			requestTasks.push(abortPromise);
+			},
+		) as Promise<unknown>;
 
-		const response = await Promise.race(requestTasks) as Response;
+		// 只支持用户主动取消，不设置超时限制（有些 AI 推理时间很长）
+		const response = abortPromise
+			? await Promise.race([requestPromise, abortPromise]) as Response
+			: await requestPromise as Response;
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -548,8 +536,6 @@ async function makeRequest(
 		);
 	}
 	finally {
-		if (timeoutId !== undefined)
-			clearTimeout(timeoutId);
 		if (signal && abortHandler) {
 			signal.removeEventListener('abort', abortHandler);
 		}
