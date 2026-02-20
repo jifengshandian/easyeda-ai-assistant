@@ -3,7 +3,7 @@
 	"uuid": "1756b096fd414831bfa7a0c3556f129f",
 	"displayName": "AI 原理图检查助手",
 	"description": "以文字形式获取原理图信息，让 AI 真正理解你的电路设计",
-	"version": "1.1.2",
+	"version": "1.2.0",
 	"publisher": "jifengshandian",
 	"engines": {
 		"eda": "^3.0.0"
