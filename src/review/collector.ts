@@ -100,6 +100,22 @@ export async function collectSchematicData(): Promise<CollectedData> {
 		meta.expectedPageCount = pages.length;
 		log('info', `[采集] 检测到 ${pages.length} 个图页`);
 
+		// 调试：尝试运行 DRC 检查
+		try {
+			log('info', `[采集] 尝试运行 DRC 检查...`);
+			const drcStartTime = Date.now();
+			const drcResult = await eda.sch_Drc.check(false, false);
+			log('info', `[采集] DRC 检查完成 (耗时 ${Date.now() - drcStartTime}ms)`, {
+				drcResultType: typeof drcResult,
+				drcResultSample: drcResult ? JSON.stringify(drcResult).substring(0, 500) : '(null)',
+			});
+		}
+		catch (drcError) {
+			log('warn', `[采集] DRC 检查失败`, {
+				error: drcError instanceof Error ? drcError.message : String(drcError),
+			});
+		}
+
 		// 先采集网表（全局数据，无需逐页）
 		const t0 = Date.now();
 		const netlistRaw = await collectNetlist();
@@ -354,11 +370,31 @@ async function collectComponentsAndPins(options: {
 		if (index === 0) {
 			try {
 				const otherProperty = await primitive.getState_OtherProperty();
-				log('info', `[采集] 检查 OtherProperty 内容 (第一个元件)`, {
+				log('info', `[采集] 检查 Component OtherProperty 内容 (第一个元件)`, {
 					otherPropertyType: typeof otherProperty,
 					otherPropertyKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(null)',
 					otherPropertySample: otherProperty ? JSON.stringify(otherProperty).substring(0, 500) : '(null)',
 				});
+
+				// 调试：尝试通过 LCSC 料号查询器件信息
+				const lcscPart = otherProperty?.['LCSC Part'] || otherProperty?.LcscPart || otherProperty?.lcscPart;
+				if (lcscPart) {
+					try {
+						log('info', `[采集] 尝试通过 LCSC 料号查询器件信息`, {
+							lcscPart,
+						});
+						// 注意：这里可能需要 libraryUuid，先尝试不传看看
+						const deviceInfo = await eda.lib_Device.getByLcscIds([String(lcscPart)], undefined as any, false);
+						log('info', `[采集] LCSC 器件查询成功`, {
+							deviceInfo: JSON.stringify(deviceInfo).substring(0, 500),
+						});
+					}
+					catch (lcscError) {
+						log('warn', `[采集] LCSC 器件查询失败`, {
+							error: lcscError instanceof Error ? lcscError.message : String(lcscError),
+						});
+					}
+				}
 			}
 			catch (debugError) {
 				log('error', `[采集] 检查 OtherProperty 失败`, {
@@ -473,7 +509,24 @@ async function collectComponentsAndPins(options: {
 		// 采集该器件的引脚
 		const componentPins: RawPin[] = [];
 		if (pinPrimitives && pinPrimitives.length > 0) {
-			const pinTasks = pinPrimitives.map(pinPrimitive => async () => {
+			const pinTasks = pinPrimitives.map((pinPrimitive, pinIndex) => async () => {
+				// 调试：检查第一个引脚的 OtherProperty
+				if (index === 0 && pinIndex === 0) {
+					try {
+						const pinOtherProperty = await pinPrimitive.getState_OtherProperty();
+						log('info', `[采集] 检查 Pin OtherProperty 内容 (第一个引脚)`, {
+							pinOtherPropertyType: typeof pinOtherProperty,
+							pinOtherPropertyKeys: pinOtherProperty ? Object.keys(pinOtherProperty).join(', ') : '(null)',
+							pinOtherPropertySample: pinOtherProperty ? JSON.stringify(pinOtherProperty).substring(0, 500) : '(null)',
+						});
+					}
+					catch (pinDebugError) {
+						log('warn', `[采集] 检查 Pin OtherProperty 失败`, {
+							error: pinDebugError instanceof Error ? pinDebugError.message : String(pinDebugError),
+						});
+					}
+				}
+
 				const [
 					pinPrimitiveId,
 					pinNumber,
