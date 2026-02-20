@@ -365,57 +365,7 @@ async function collectComponentsAndPins(options: {
 	const allComponents: RawComponent[] = [];
 	const allPins: RawPin[] = [];
 
-	const componentTasks = validPrimitives.map(({ primitive }, index) => async () => {
-		// 调试：检查 OtherProperty 的内容（仅第一个元件）
-		if (index === 0) {
-			try {
-				const otherProperty = await primitive.getState_OtherProperty();
-				log('info', `[采集] 检查 Component OtherProperty 内容 (第一个元件)`, {
-					otherPropertyType: typeof otherProperty,
-					otherPropertyKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(null)',
-					otherPropertySample: otherProperty ? JSON.stringify(otherProperty).substring(0, 500) : '(null)',
-				});
-
-				// 调试：尝试通过 LCSC 料号查询器件信息
-				// 注意：实际键名是 "LCSC Part Name"，需要判断它是编号还是名称
-				const lcscPartNameRaw = otherProperty?.['LCSC Part Name'] || otherProperty?.['LCSC Part'] || '';
-				const lcscPartStr = String(lcscPartNameRaw).trim();
-				log('info', `[采集] LCSC Part 值检查`, {
-					'LCSC Part Name': String(otherProperty?.['LCSC Part Name'] || '(无)'),
-					'LCSC Part': String(otherProperty?.['LCSC Part'] || '(无)'),
-					'isLcscId': /^C\d+$/i.test(lcscPartStr),
-					'resolvedValue': lcscPartStr || '(空)',
-				});
-				if (lcscPartStr) {
-					try {
-						log('info', `[采集] 尝试通过 LCSC 料号查询器件信息`, {
-							lcscPart: lcscPartStr,
-						});
-						const deviceInfo = await eda.lib_Device.getByLcscIds([lcscPartStr], undefined as any, false);
-						log('info', `[采集] LCSC 器件查询成功`, {
-							deviceInfo: JSON.stringify(deviceInfo).substring(0, 500),
-						});
-					}
-					catch (lcscError) {
-						log('warn', `[采集] LCSC 器件查询失败`, {
-							lcscPart: lcscPartStr,
-							error: lcscError instanceof Error ? lcscError.message : String(lcscError),
-						});
-					}
-				}
-				else {
-					log('info', `[采集] 第一个元件没有 LCSC Part`, {
-						availableKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(无)',
-					});
-				}
-			}
-			catch (debugError) {
-				log('error', `[采集] 检查 OtherProperty 失败`, {
-					error: debugError instanceof Error ? debugError.message : String(debugError),
-				});
-			}
-		}
-
+	const componentTasks = validPrimitives.map(({ primitive }, _index) => async () => {
 		// 并行获取器件基本信息 + 引脚列表
 		let primitiveId = '';
 		let designator = '';
@@ -543,7 +493,33 @@ async function collectComponentsAndPins(options: {
 					lcscPartPreview: lcscPart ? lcscPart.substring(0, 30) : '(空)',
 					jlcPartPreview: jlcPart ? jlcPart.substring(0, 30) : '(空)',
 					otherPropertyKeys: otherProperty ? Object.keys(otherProperty).join(', ') : '(无)',
+					otherPropertySample: otherProperty ? JSON.stringify(otherProperty).substring(0, 1000) : '(无)',
 				});
+
+				// 调试：尝试通过 LCSC 料号查询器件信息
+				if (lcscPart && /^C\d+$/i.test(lcscPart.trim())) {
+					try {
+						log('info', `[采集] 尝试通过 LCSC 料号查询器件信息`, {
+							lcscPart: lcscPart.trim(),
+						});
+						const deviceInfo = await eda.lib_Device.getByLcscIds([lcscPart.trim()], undefined as any, false);
+						log('info', `[采集] LCSC 器件查询成功`, {
+							deviceInfo: JSON.stringify(deviceInfo).substring(0, 500),
+						});
+					}
+					catch (lcscError) {
+						log('warn', `[采集] LCSC 器件查询失败`, {
+							lcscPart: lcscPart.trim(),
+							error: lcscError instanceof Error ? lcscError.message : String(lcscError),
+						});
+					}
+				}
+				else {
+					log('info', `[采集] 第一个元件的 LCSC Part 不是有效编号`, {
+						lcscPartValue: lcscPart || '(空)',
+						isValidFormat: /^C\d+$/i.test(lcscPart?.trim() || ''),
+					});
+				}
 			}
 		}
 		catch (error) {
