@@ -309,6 +309,16 @@ async function collectComponentsAndPins(options: {
 }): Promise<{ components: RawComponent[]; pins: RawPin[] }> {
 	const { schematicPageUuid, netlistMap, wireData, netLabels } = options;
 
+	// 调试：函数入口日志（必定触发）
+	log('info', `[采集] ========== 开始采集器件和引脚 ==========`, {
+		时间戳: new Date().toISOString(),
+		页面UUID: schematicPageUuid || '(单页模式)',
+		网表映射数: netlistMap.size,
+		有效导线数: wireData.validWires.length,
+		空导线数: wireData.emptyWires.length,
+		网络标记数: netLabels.length,
+	});
+
 	// 构建导线拓扑图（L4 策略）
 	const wireClusters = buildWireTopology(wireData.validWires, wireData.emptyWires, netLabels);
 
