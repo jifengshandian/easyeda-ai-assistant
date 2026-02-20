@@ -397,6 +397,55 @@ async function collectComponentsAndPins(options: {
 			return { component: null, pins: [] };
 		}
 
+		// 调试：尝试获取 LCSC 编号（仅第一个成功采集的元件）
+		if (allComponents.length === 0) {
+			try {
+				log('info', `[采集] 尝试获取 LCSC 编号的各种方法 (${designator})`, {
+					designator,
+					primitiveType: typeof primitive,
+				});
+
+				// 尝试所有可能的方法
+				const testMethods = [
+					'getState_LcscPart',
+					'getState_Lcsc',
+					'getState_SupplierPart',
+					'getState_ItemProperty',
+					'getState_CNumber',
+					'getState_SupplierPartNumber',
+					'getState_ComponentAttributes',
+					'getState_Attributes',
+				];
+
+				for (const methodName of testMethods) {
+					try {
+						if (typeof (primitive as any)[methodName] === 'function') {
+							const result = await (primitive as any)[methodName]();
+							log('info', `[采集] ${methodName} 返回值`, {
+								methodName,
+								resultType: typeof result,
+								resultValue: result ? JSON.stringify(result).substring(0, 300) : '(null)',
+							});
+						}
+						else {
+							log('info', `[采集] ${methodName} 不存在`, { methodName });
+						}
+					}
+					catch (methodError) {
+						log('warn', `[采集] ${methodName} 调用失败`, {
+							methodName,
+							error: methodError instanceof Error ? methodError.message : String(methodError),
+						});
+					}
+				}
+			}
+			catch (debugError) {
+				log('error', `[采集] LCSC 编号调试失败`, {
+					error: debugError instanceof Error ? debugError.message : String(debugError),
+				});
+			}
+		}
+
 		// 制造商信息和关键属性（从 OtherProperty 和标准方法获取）
 		let manufacturer = '';
 		let manufacturerPartNumber = '';
