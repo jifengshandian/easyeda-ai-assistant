@@ -343,9 +343,26 @@ async function collectComponentsAndPins(options: {
 			lcscPart = lcsc || '';
 			jlcPart = jlc || '';
 			bomInclude = bom || '';
+
+			// 调试日志：记录第一个元件的属性获取情况（避免日志过多）
+			if (allComponents.length === 0) {
+				log('info', `[采集] 元件属性获取示例 (${designator})`, {
+					hasValue: !!value,
+					hasPrefix: !!prefix,
+					hasAddIntoPcb: !!addIntoPcb,
+					hasLcscPart: !!lcscPart,
+					hasJlcPart: !!jlcPart,
+					hasBomInclude: !!bomInclude,
+					hasManufacturer: !!manufacturer,
+					hasManufacturerPartNumber: !!manufacturerPartNumber,
+					valuePreview: value ? value.substring(0, 20) : '(空)',
+					prefixPreview: prefix || '(空)',
+				});
+			}
 		}
-		catch {
+		catch (error) {
 			// 某些器件可能没有这些属性
+			log('warn', `[采集] 获取元件属性失败 (${designator})`, { error: error instanceof Error ? error.message : String(error) });
 		}
 
 		const component: RawComponent = {
@@ -483,6 +500,31 @@ async function collectComponentsAndPins(options: {
 		allComponents.push(result.component);
 		allPins.push(...result.pins);
 	}
+
+	// 统计属性获取情况
+	const stats = {
+		total: allComponents.length,
+		withValue: allComponents.filter(c => c.value).length,
+		withPrefix: allComponents.filter(c => c.prefix).length,
+		withAddIntoPcb: allComponents.filter(c => c.addIntoPcb).length,
+		withLcscPart: allComponents.filter(c => c.lcscPart).length,
+		withJlcPart: allComponents.filter(c => c.jlcPart).length,
+		withBomInclude: allComponents.filter(c => c.bomInclude).length,
+		withManufacturer: allComponents.filter(c => c.manufacturer).length,
+		withManufacturerPartNumber: allComponents.filter(c => c.manufacturerPartNumber).length,
+	};
+
+	log('info', `[采集] 元件属性统计`, {
+		总元件数: stats.total,
+		有Value: `${stats.withValue}/${stats.total} (${(stats.withValue / stats.total * 100).toFixed(1)}%)`,
+		有Prefix: `${stats.withPrefix}/${stats.total} (${(stats.withPrefix / stats.total * 100).toFixed(1)}%)`,
+		有AddIntoPcb: `${stats.withAddIntoPcb}/${stats.total} (${(stats.withAddIntoPcb / stats.total * 100).toFixed(1)}%)`,
+		有LcscPart: `${stats.withLcscPart}/${stats.total} (${(stats.withLcscPart / stats.total * 100).toFixed(1)}%)`,
+		有JlcPart: `${stats.withJlcPart}/${stats.total} (${(stats.withJlcPart / stats.total * 100).toFixed(1)}%)`,
+		有BomInclude: `${stats.withBomInclude}/${stats.total} (${(stats.withBomInclude / stats.total * 100).toFixed(1)}%)`,
+		有Manufacturer: `${stats.withManufacturer}/${stats.total} (${(stats.withManufacturer / stats.total * 100).toFixed(1)}%)`,
+		有ManufacturerPartNumber: `${stats.withManufacturerPartNumber}/${stats.total} (${(stats.withManufacturerPartNumber / stats.total * 100).toFixed(1)}%)`,
+	});
 
 	return { components: allComponents, pins: allPins };
 }
